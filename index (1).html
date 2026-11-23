@@ -1,0 +1,740 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>body{margin:0}[hidden]{display:none!important}img{max-width:100%}</style>
+<title>HabbitRabbit</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          bg: 'var(--bg)', surface: 'var(--surface)', surface2: 'var(--surface2)', line: 'var(--line)',
+          fg: 'var(--fg)', muted: 'var(--muted)', accent: 'var(--accent)', accentfg: 'var(--accent-fg)',
+          accentsoft: 'var(--accent-soft)', warn: 'var(--warn)', warnsoft: 'var(--warn-soft)',
+          danger: 'var(--danger)', dangersoft: 'var(--danger-soft)'
+        },
+        fontFamily: {
+          display: ['"Barlow Condensed"', 'Arial Narrow', 'sans-serif'],
+          sans: ['Barlow', 'system-ui', 'sans-serif']
+        }
+      }
+    }
+  };
+</script>
+<style>
+  /* Layout: single column on phones with a bottom tab bar; top tabs and a two-column dashboard on desktop. */
+  :root {
+    --bg: #eaf2fd; --surface: #ffffff; --surface2: #d6e6fb; --line: #b6cdef;
+    --fg: #070b14; --muted: #46566f;
+    --accent: #1e4fd8; --accent-fg: #ffffff; --accent-soft: #cfe1fb;
+    --warn: #a14a05; --warn-soft: #fbe9cf;
+    --danger: #b42318; --danger-soft: #fbdad6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #04060b; --surface: #0c121f; --surface2: #141d30; --line: #22314d;
+      --fg: #e8f0ff; --muted: #8fa3c4;
+      --accent: #6cb0ff; --accent-fg: #03101f; --accent-soft: #10264a;
+      --warn: #f2b25c; --warn-soft: #3a2c12;
+      --danger: #ff8a7d; --danger-soft: #3f1b17;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #04060b; --surface: #0c121f; --surface2: #141d30; --line: #22314d;
+    --fg: #e8f0ff; --muted: #8fa3c4;
+    --accent: #6cb0ff; --accent-fg: #03101f; --accent-soft: #10264a;
+    --warn: #f2b25c; --warn-soft: #3a2c12;
+    --danger: #ff8a7d; --danger-soft: #3f1b17;
+    color-scheme: dark;
+  }
+  body {
+    background: var(--bg); color: var(--fg);
+    font-family: 'Barlow', system-ui, sans-serif; font-size: 16px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 20px 104px;
+  }
+  @media (min-width: 768px) { body { padding-block: 28px 48px; } }
+  .shell { max-width: 72rem; margin: 0 auto; }
+  button, input { font: inherit; }
+  button { cursor: pointer; }
+  button:focus-visible, input:focus-visible, a:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px;
+  }
+  input[type="checkbox"] { accent-color: var(--accent); width: 22px; height: 22px; flex: none; }
+  input[type="date"] { color-scheme: inherit; }
+  .tabbar {
+    padding-left: max(8px, env(safe-area-inset-left, 0px));
+    padding-right: max(8px, env(safe-area-inset-right, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .tnum { font-variant-numeric: tabular-nums; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/htm@3.1.1/dist/htm.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+(function () {
+  const { useState, useEffect, useMemo, useRef } = React;
+  const html = htm.bind(React.createElement);
+
+  /* ---------- Supabase setup: paste your two project values here ---------- */
+  const SUPABASE_URL = 'https://uoqdtvsrlvayyzpzrdfv.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_AFw4Rhz4xf-WIoj4AI3VIg_Vvfpdue2';
+  const sb = (window.supabase && !SUPABASE_URL.startsWith('YOUR_'))
+    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+    : null;
+
+  /* ---------- date helpers (local time) ---------- */
+  const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  const pad = (n) => String(n).padStart(2, '0');
+  const keyOf = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  const fromKey = (k) => { const p = k.split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]); };
+  const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+  const dayIndex = (d) => (d.getDay() + 6) % 7; // Monday = 0
+  const uid = () => Math.random().toString(36).slice(2, 9);
+  const fmtDate = (k) => fromKey(k).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const daysUntil = (k, todayKey) => Math.round((fromKey(k) - fromKey(todayKey)) / 86400000);
+
+  /* ---------- storage ---------- */
+  const STORE = 'setlog-v1';
+  function seed() {
+    const t = keyOf(new Date());
+    const g = (n) => keyOf(addDays(new Date(), n));
+    return {
+      seeded: true,
+      mode: 'increment',
+      inc: { exercises: [
+        { id: uid(), name: 'Push-ups', startSets: 3, reps: 10, startDate: t },
+        { id: uid(), name: 'Bodyweight squats', startSets: 3, reps: 15, startDate: t }
+      ] },
+      routine: { days: [
+        [{ id: uid(), name: 'Bench press', sets: 4, reps: 8 }, { id: uid(), name: 'Barbell row', sets: 4, reps: 10 }],
+        [],
+        [{ id: uid(), name: 'Back squat', sets: 5, reps: 5 }],
+        [],
+        [{ id: uid(), name: 'Deadlift', sets: 3, reps: 5 }, { id: uid(), name: 'Pull-ups', sets: 3, reps: 8 }],
+        [{ id: uid(), name: 'Easy 5K run', sets: 1, reps: 1 }],
+        []
+      ] },
+      progress: { inc: {}, rt: {} },
+      goals: [
+        { id: uid(), title: 'Book a health check-up', deadline: g(3), done: false },
+        { id: uid(), title: 'Run 5K without stopping', deadline: g(12), done: false },
+        { id: uid(), title: 'Bench press 60 kg', deadline: g(45), done: false }
+      ]
+    };
+  }
+  function load() {
+    try {
+      const raw = localStorage.getItem(STORE);
+      if (raw) {
+        const d = JSON.parse(raw);
+        if (d && d.inc && d.routine && d.progress && d.goals) return d;
+      }
+    } catch (e) {}
+    return seed();
+  }
+
+  /* ---------- workout logic ---------- */
+  // Increment mode: the target starts at startSets. After each day, +1 set if the
+  // target was fully completed, otherwise -1 set (never below 1).
+  function incTarget(ex, dateKey, progress) {
+    let t = ex.startSets;
+    const end = fromKey(dateKey);
+    for (let d = fromKey(ex.startDate); d < end; d = addDays(d, 1)) {
+      const done = ((progress.inc[keyOf(d)] || {})[ex.id] || 0) >= t;
+      t = done ? t + 1 : Math.max(1, t - 1);
+    }
+    return t;
+  }
+
+  function computeToday(s, today) {
+    let items = [];
+    if (s.mode === 'increment') {
+      const yKey = keyOf(addDays(fromKey(today), -1));
+      items = s.inc.exercises.filter((e) => e.startDate <= today).map((e) => {
+        const target = incTarget(e, today, s.progress);
+        const doneSets = ((s.progress.inc[today] || {})[e.id]) || 0;
+        let delta = null;
+        if (e.startDate < today) delta = target - incTarget(e, yKey, s.progress);
+        return { id: e.id, name: e.name, reps: e.reps, target, doneSets, delta, done: doneSets >= target,
+                 detail: target + (target === 1 ? ' set' : ' sets') + ' × ' + e.reps + ' reps', progress: doneSets + '/' + target };
+      });
+    } else {
+      const list = s.routine.days[dayIndex(fromKey(today))] || [];
+      items = list.map((e) => ({
+        id: e.id, name: e.name, done: !!((s.progress.rt[today] || {})[e.id]),
+        detail: e.sets + (e.sets === 1 ? ' set' : ' sets') + ' × ' + e.reps + ' reps'
+      }));
+    }
+    const doneCount = items.filter((i) => i.done).length;
+    return { mode: s.mode, items, doneCount, total: items.length, completed: items.length > 0 && doneCount === items.length };
+  }
+
+  /* ---------- small UI pieces ---------- */
+  const field = 'w-full h-11 rounded-md border border-line bg-bg px-3 text-fg placeholder:text-muted';
+  const label = 'block text-xs font-semibold uppercase tracking-wider text-muted mb-1';
+  const btnPrimary = 'h-11 px-4 rounded-md bg-accent text-accentfg font-semibold';
+  const btnGhost = 'h-11 px-3 rounded-md border border-line text-fg font-medium';
+  const card = 'rounded-2xl border border-line bg-surface p-4 sm:p-5';
+
+  const Svg = (props) => html`<svg width=${props.size || 20} height=${props.size || 20} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">${props.children}</svg>`;
+  const IconCheck = (p) => html`<${Svg} size=${p.size}><path d="M5 12.5l4.5 4.5L19 7.5" /><//>`;
+  const IconTrash = () => html`<${Svg} size=${18}><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12h10l1-12M9 7V4h6v3" /><//>`;
+  const IconHome = () => html`<${Svg} size=${22}><rect x="3.5" y="3.5" width="7" height="7" rx="1" /><rect x="13.5" y="3.5" width="7" height="7" rx="1" /><rect x="3.5" y="13.5" width="7" height="7" rx="1" /><rect x="13.5" y="13.5" width="7" height="7" rx="1" /><//>`;
+  const IconBell = () => html`<${Svg} size=${22}><path d="M2 12h3M19 12h3M5 8v8M19 8v8M8 6v12M16 6v12M8 12h8" /><//>`;
+  const IconFlag = () => html`<${Svg} size=${22}><path d="M5 21V4M5 4h11l-2 4 2 4H5" /><//>`;
+
+  function Chip({ tone, children }) {
+    const tones = {
+      ok: 'bg-accentsoft text-accent', warn: 'bg-warnsoft text-warn',
+      danger: 'bg-dangersoft text-danger', neutral: 'bg-surface2 text-muted'
+    };
+    return html`<span class=${'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ' + (tones[tone] || tones.neutral)}>${children}</span>`;
+  }
+
+  function deadlineChip(deadline, today) {
+    const n = daysUntil(deadline, today);
+    if (n < 0) return html`<${Chip} tone="danger">Overdue by ${-n} ${-n === 1 ? 'day' : 'days'}<//>`;
+    if (n === 0) return html`<${Chip} tone="warn">Due today<//>`;
+    if (n === 1) return html`<${Chip} tone="warn">Tomorrow<//>`;
+    if (n <= 3) return html`<${Chip} tone="warn">In ${n} days<//>`;
+    return html`<${Chip} tone="neutral">In ${n} days<//>`;
+  }
+
+  function SectionTitle({ children, right }) {
+    return html`<div class="flex items-center justify-between gap-3 mb-3">
+      <h2 class="font-display text-2xl font-bold uppercase tracking-wide">${children}</h2>${right}
+    </div>`;
+  }
+
+  function PageHead({ title, sub }) {
+    return html`<div class="mb-5">
+      <h1 class="font-display text-5xl md:text-6xl font-bold uppercase leading-none">${title}</h1>
+      ${sub && html`<p class="mt-2 text-muted">${sub}</p>`}
+    </div>`;
+  }
+
+  function AddExercise({ prefix, onAdd, setsLabel, defaultSets, defaultReps }) {
+    const [name, setName] = useState('');
+    const [sets, setSets] = useState(String(defaultSets || 3));
+    const [reps, setReps] = useState(String(defaultReps || 10));
+    const submit = (e) => {
+      e.preventDefault();
+      const n = name.trim();
+      if (!n) return;
+      onAdd({ name: n, sets: Math.max(1, parseInt(sets, 10) || 1), reps: Math.max(1, parseInt(reps, 10) || 1) });
+      setName('');
+    };
+    return html`<form onSubmit=${submit} class="grid grid-cols-6 gap-2 items-end">
+      <div class="col-span-6 sm:col-span-3">
+        <label class=${label} htmlFor=${prefix + '-name'}>Exercise</label>
+        <input id=${prefix + '-name'} class=${field} value=${name} onChange=${(e) => setName(e.target.value)} placeholder="e.g. Lunges" maxLength="60" />
+      </div>
+      <div class="col-span-2 sm:col-span-1">
+        <label class=${label} htmlFor=${prefix + '-sets'}>${setsLabel || 'Sets'}</label>
+        <input id=${prefix + '-sets'} class=${field + ' tnum'} type="number" min="1" max="99" inputMode="numeric" value=${sets} onChange=${(e) => setSets(e.target.value)} />
+      </div>
+      <div class="col-span-2 sm:col-span-1">
+        <label class=${label} htmlFor=${prefix + '-reps'}>Reps</label>
+        <input id=${prefix + '-reps'} class=${field + ' tnum'} type="number" min="1" max="999" inputMode="numeric" value=${reps} onChange=${(e) => setReps(e.target.value)} />
+      </div>
+      <div class="col-span-2 sm:col-span-1">
+        <button type="submit" class=${btnPrimary + ' w-full'}>Add</button>
+      </div>
+    </form>`;
+  }
+
+  /* ---------- Dashboard ---------- */
+  function Dashboard({ s, today, wk, go }) {
+    const d = fromKey(today);
+    const upcoming = s.goals.filter((g) => !g.done).sort((a, b) => a.deadline.localeCompare(b.deadline));
+    const shown = upcoming.slice(0, 5);
+    const status = wk.completed
+      ? html`<${Chip} tone="ok"><${IconCheck} size=${14} /> Completed<//>`
+      : wk.total === 0
+        ? html`<${Chip} tone="neutral">${wk.mode === 'routine' ? 'Rest day' : 'No exercises'}<//>`
+        : html`<${Chip} tone="warn">${wk.doneCount} of ${wk.total} done<//>`;
+
+    return html`<div>
+      <${PageHead} title=${DAYS[dayIndex(d)]} sub=${d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} />
+      <div class="grid gap-4 lg:grid-cols-5">
+        <section class=${card + ' lg:col-span-3'} aria-labelledby="dash-workout">
+          <div class="flex items-center justify-between gap-3 mb-3">
+            <h2 id="dash-workout" class="font-display text-2xl font-bold uppercase tracking-wide">Today’s workout</h2>
+            ${status}
+          </div>
+          <p class="text-sm text-muted mb-3">${wk.mode === 'increment' ? 'Increment mode: one more set each day you finish.' : 'Routine mode: your ' + DAYS[dayIndex(d)] + ' card.'}</p>
+
+          ${wk.completed && html`<div class="flex items-center gap-3 rounded-xl bg-accentsoft text-accent px-4 py-4 mb-3">
+            <span class="grid place-items-center h-10 w-10 rounded-full bg-accent text-accentfg"><${IconCheck} size=${22} /></span>
+            <div>
+              <div class="font-display text-3xl font-bold uppercase leading-none">Completed</div>
+              <div class="text-sm mt-1">Everything for today is done. Nice work.</div>
+            </div>
+          </div>`}
+
+          ${wk.total === 0 && html`<p class="rounded-xl bg-surface2 px-4 py-5 text-muted">
+            ${wk.mode === 'routine' ? 'Nothing planned for ' + DAYS[dayIndex(d)] + '. Enjoy the rest day, or add exercises to this day.' : 'No exercises yet. Add one to start the daily increment.'}
+          </p>`}
+
+          <ul class="divide-y divide-line">
+            ${wk.items.map((it) => html`<li key=${it.id} class="flex items-center gap-3 py-3">
+              <span class=${'grid place-items-center h-7 w-7 rounded-full border-2 flex-none ' + (it.done ? 'bg-accent border-accent text-accentfg' : 'border-line text-transparent')}><${IconCheck} size=${14} /></span>
+              <div class="min-w-0 flex-1">
+                <div class=${'font-semibold truncate ' + (it.done ? 'text-muted line-through' : '')}>${it.name}</div>
+                <div class="text-sm text-muted tnum">${it.detail}</div>
+              </div>
+              ${it.progress && html`<span class="text-sm font-semibold tnum text-muted">${it.progress}</span>`}
+            </li>`)}
+          </ul>
+          <button type="button" class=${btnGhost + ' mt-3'} onClick=${() => go('workout')}>${wk.completed ? 'View workout' : 'Open workout'}</button>
+        </section>
+
+        <section class=${card + ' lg:col-span-2'} aria-labelledby="dash-plans">
+          <div class="flex items-center justify-between gap-3 mb-3">
+            <h2 id="dash-plans" class="font-display text-2xl font-bold uppercase tracking-wide">Upcoming deadlines</h2>
+          </div>
+          ${shown.length === 0 && html`<p class="rounded-xl bg-surface2 px-4 py-5 text-muted">No open goals. Set one in Plans.</p>`}
+          <ul class="divide-y divide-line">
+            ${shown.map((g) => html`<li key=${g.id} class="py-3">
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="font-semibold">${g.title}</div>
+                  <div class="text-sm text-muted tnum">${fmtDate(g.deadline)}</div>
+                </div>
+                ${deadlineChip(g.deadline, today)}
+              </div>
+            </li>`)}
+          </ul>
+          ${upcoming.length > shown.length && html`<p class="text-sm text-muted mt-2">+ ${upcoming.length - shown.length} more in Plans</p>`}
+          <button type="button" class=${btnGhost + ' mt-3'} onClick=${() => go('plans')}>Open plans</button>
+        </section>
+      </div>
+    </div>`;
+  }
+
+  /* ---------- Workout ---------- */
+  function IncCard({ it, onSet, onDel }) {
+    const sets = Array.from({ length: it.target }, (_, i) => i + 1);
+    let note = 'Starting point';
+    let tone = 'neutral';
+    if (it.delta > 0) { note = '+' + it.delta + ' set from yesterday'; tone = 'ok'; }
+    else if (it.delta < 0) { note = '−' + (-it.delta) + ' set after a missed day'; tone = 'danger'; }
+    else if (it.delta === 0) { note = 'Held at the 1 set minimum'; }
+    return html`<article class=${card}>
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <h3 class="font-display text-2xl font-bold uppercase tracking-wide truncate">${it.name}</h3>
+          <p class="text-muted tnum">${it.detail} today</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <${Chip} tone=${tone}>${note}<//>
+          <button type="button" class="grid place-items-center h-11 w-11 rounded-md text-muted border border-line" aria-label=${'Remove ' + it.name} onClick=${onDel}><${IconTrash} /></button>
+        </div>
+      </div>
+      <div class="mt-4 flex flex-wrap gap-2" role="group" aria-label=${'Sets for ' + it.name}>
+        ${sets.map((n) => html`<button key=${n} type="button" aria-pressed=${it.doneSets >= n} aria-label=${'Set ' + n}
+          onClick=${() => onSet(n)}
+          class=${'h-11 w-11 rounded-full border-2 font-display text-lg font-bold tnum ' + (it.doneSets >= n ? 'bg-accent border-accent text-accentfg' : 'border-line text-muted')}>${n}</button>`)}
+      </div>
+      <p class="mt-3 text-sm text-muted">Tap a set when you finish it. Finish all ${it.target} to grow tomorrow’s target.</p>
+    </article>`;
+  }
+
+  function DayCard({ idx, items, isToday, doneMap, onAdd, onDel, onToggle }) {
+    const [open, setOpen] = useState(false);
+    const all = isToday && items.length > 0 && items.every((e) => doneMap[e.id]);
+    return html`<article class=${'rounded-2xl bg-surface p-4 sm:p-5 flex flex-col ' + (isToday ? 'border-2 border-accent' : 'border border-line')}>
+      <div class="flex items-center justify-between gap-2 mb-2">
+        <h3 class="font-display text-2xl font-bold uppercase tracking-wide">${DAYS[idx]}</h3>
+        <div class="flex items-center gap-2">
+          ${all && html`<${Chip} tone="ok"><${IconCheck} size=${14} /> Completed<//>`}
+          ${isToday && !all && html`<${Chip} tone="warn">Today<//>`}
+        </div>
+      </div>
+      ${items.length === 0 && html`<p class="text-muted mb-2">Rest day. Add exercises if you want to train.</p>`}
+      <ul class="divide-y divide-line">
+        ${items.map((e) => html`<li key=${e.id} class="flex items-center gap-3 py-2.5">
+          ${isToday && html`<input type="checkbox" id=${'rt-chk-' + e.id} checked=${!!doneMap[e.id]} onChange=${() => onToggle(e.id)} aria-label=${'Mark ' + e.name + ' done'} />`}
+          <div class="min-w-0 flex-1">
+            <div class=${'font-semibold truncate ' + (isToday && doneMap[e.id] ? 'line-through text-muted' : '')}>${e.name}</div>
+            <div class="text-sm text-muted tnum">${e.sets} ${e.sets === 1 ? 'set' : 'sets'} × ${e.reps} reps</div>
+          </div>
+          <button type="button" class="grid place-items-center h-10 w-10 rounded-md text-muted" aria-label=${'Remove ' + e.name} onClick=${() => onDel(e.id)}><${IconTrash} /></button>
+        </li>`)}
+      </ul>
+      <div class="mt-auto pt-3">
+        ${open
+          ? html`<div class="border-t border-line pt-3">
+              <${AddExercise} prefix=${'rt-' + idx} onAdd=${onAdd} />
+              <button type="button" class="mt-2 text-sm text-muted underline" onClick=${() => setOpen(false)}>Close</button>
+            </div>`
+          : html`<button type="button" class=${btnGhost + ' w-full'} onClick=${() => setOpen(true)}>+ Add exercise</button>`}
+      </div>
+    </article>`;
+  }
+
+  function Workout({ s, today, wk, actions }) {
+    const mode = s.mode;
+    const tIdx = dayIndex(fromKey(today));
+    const seg = (id, text) => html`<button type="button" role="tab" aria-selected=${mode === id} onClick=${() => actions.setMode(id)}
+      class=${'h-11 px-5 rounded-full font-semibold ' + (mode === id ? 'bg-accent text-accentfg' : 'text-muted')}>${text}</button>`;
+
+    return html`<div>
+      <${PageHead} title="Workout" sub=${mode === 'increment'
+        ? 'Finish every set and tomorrow gets one more. Miss a day and it drops by one.'
+        : 'Plan each day of the week. Add as many exercises as you need to a card.'} />
+      <div role="tablist" aria-label="Workout mode" class="inline-flex rounded-full bg-surface2 p-1 mb-5">
+        ${seg('increment', 'Increment')}${seg('routine', 'Routine')}
+      </div>
+
+      ${mode === 'increment' && html`<div class="grid gap-4">
+        ${wk.completed && html`<div class="flex items-center gap-3 rounded-2xl bg-accentsoft text-accent px-4 py-4">
+          <span class="grid place-items-center h-10 w-10 rounded-full bg-accent text-accentfg"><${IconCheck} size=${22} /></span>
+          <div class="font-display text-3xl font-bold uppercase leading-none">Completed for today</div>
+        </div>`}
+        ${wk.items.length === 0 && html`<p class=${card + ' text-muted'}>No exercises yet. Add your first one below. Exercises you add today start counting tomorrow.</p>`}
+        <div class="grid gap-4 md:grid-cols-2">
+          ${wk.items.map((it) => html`<${IncCard} key=${it.id} it=${it} onSet=${(n) => actions.toggleSet(it.id, n)} onDel=${() => actions.delIncEx(it.id)} />`)}
+        </div>
+        <section class=${card}>
+          <h2 class="font-display text-2xl font-bold uppercase tracking-wide mb-3">Add an exercise</h2>
+          <${AddExercise} prefix="inc" setsLabel="Start sets" defaultSets=${3} defaultReps=${10} onAdd=${actions.addIncEx} />
+        </section>
+      </div>`}
+
+      ${mode === 'routine' && html`<div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        ${DAYS.map((_, i) => html`<${DayCard} key=${i} idx=${i} items=${s.routine.days[i]} isToday=${i === tIdx}
+          doneMap=${s.progress.rt[today] || {}}
+          onAdd=${(ex) => actions.addRtEx(i, ex)} onDel=${(id) => actions.delRtEx(i, id)} onToggle=${actions.toggleRt} />`)}
+      </div>`}
+    </div>`;
+  }
+
+  /* ---------- Plans ---------- */
+  function Plans({ s, today, actions }) {
+    const [title, setTitle] = useState('');
+    const [deadline, setDeadline] = useState('');
+    const open = s.goals.filter((g) => !g.done).sort((a, b) => a.deadline.localeCompare(b.deadline));
+    const done = s.goals.filter((g) => g.done).sort((a, b) => b.deadline.localeCompare(a.deadline));
+    const submit = (e) => {
+      e.preventDefault();
+      const t = title.trim();
+      if (!t || !deadline) return;
+      actions.addGoal(t, deadline);
+      setTitle('');
+      setDeadline('');
+    };
+    const row = (g) => html`<li key=${g.id} class="flex items-center gap-3 py-3">
+      <input type="checkbox" id=${'goal-' + g.id} checked=${g.done} onChange=${() => actions.toggleGoal(g.id)} aria-label=${'Mark ' + g.title + ' as achieved'} />
+      <div class="min-w-0 flex-1">
+        <div class=${'font-semibold ' + (g.done ? 'line-through text-muted' : '')}>${g.title}</div>
+        <div class="text-sm text-muted tnum">Deadline ${fmtDate(g.deadline)}</div>
+      </div>
+      ${!g.done && deadlineChip(g.deadline, today)}
+      <button type="button" class="grid place-items-center h-10 w-10 rounded-md text-muted" aria-label=${'Delete ' + g.title} onClick=${() => actions.delGoal(g.id)}><${IconTrash} /></button>
+    </li>`;
+
+    return html`<div>
+      <${PageHead} title="Plans" sub="Set goals with their own deadlines. The nearest ones show on your dashboard." />
+      <div class="grid gap-4 lg:grid-cols-5">
+        <section class=${card + ' lg:col-span-2 lg:self-start'}>
+          <h2 class="font-display text-2xl font-bold uppercase tracking-wide mb-3">New goal</h2>
+          <form onSubmit=${submit} class="grid gap-3">
+            <div>
+              <label class=${label} htmlFor="goal-title">Goal</label>
+              <input id="goal-title" class=${field} value=${title} onChange=${(e) => setTitle(e.target.value)} placeholder="e.g. Run a 10K" maxLength="100" />
+            </div>
+            <div>
+              <label class=${label} htmlFor="goal-deadline">Deadline</label>
+              <input id="goal-deadline" class=${field + ' tnum'} type="date" min=${today} value=${deadline} onChange=${(e) => setDeadline(e.target.value)} />
+            </div>
+            <button type="submit" class=${btnPrimary}>Add goal</button>
+          </form>
+        </section>
+
+        <section class=${card + ' lg:col-span-3'}>
+          <h2 class="font-display text-2xl font-bold uppercase tracking-wide mb-1">Open goals</h2>
+          ${open.length === 0 && html`<p class="rounded-xl bg-surface2 px-4 py-5 text-muted mt-2">No open goals. Add one with a deadline.</p>`}
+          <ul class="divide-y divide-line">${open.map(row)}</ul>
+          ${done.length > 0 && html`<h2 class="font-display text-2xl font-bold uppercase tracking-wide mt-6 mb-1">Achieved</h2>
+            <ul class="divide-y divide-line">${done.map(row)}</ul>`}
+        </section>
+      </div>
+    </div>`;
+  }
+
+  /* ---------- App shell ---------- */
+  function AuthScreen({ sb }) {
+    const [mode, setMode] = useState('signin');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [busy, setBusy] = useState(false);
+    const [err, setErr] = useState('');
+    const [msg, setMsg] = useState('');
+    const signup = mode === 'signup';
+    const submit = async (e) => {
+      e.preventDefault();
+      setErr(''); setMsg(''); setBusy(true);
+      try {
+        if (!signup) {
+          const r = await sb.auth.signInWithPassword({ email: email.trim(), password });
+          if (r.error) setErr(r.error.message);
+        } else {
+          const r = await sb.auth.signUp({ email: email.trim(), password });
+          if (r.error) setErr(r.error.message);
+          else if (!r.data.session) setMsg('Check your email to confirm your account, then sign in.');
+        }
+      } catch (x) { setErr('Could not reach the server. Check your connection and try again.'); }
+      setBusy(false);
+    };
+    return html`<div class="shell py-8 sm:py-16">
+      <div class="text-center mb-6">
+        <div class="font-display text-5xl font-bold uppercase tracking-wider">Habbit<span class="text-accent">Rabbit</span></div>
+        <p class="mt-2 text-muted">${signup ? 'Create an account to keep your own workouts and goals.' : 'Sign in to open your workouts and goals.'}</p>
+      </div>
+      <form onSubmit=${submit} class=${card + ' max-w-md mx-auto grid gap-3'}>
+        <div>
+          <label class=${label} htmlFor="auth-email">Email</label>
+          <input id="auth-email" class=${field} type="email" required autoComplete="email" value=${email} onChange=${(e) => setEmail(e.target.value)} />
+        </div>
+        <div>
+          <label class=${label} htmlFor="auth-password">Password</label>
+          <input id="auth-password" class=${field} type="password" required minLength="6" autoComplete=${signup ? 'new-password' : 'current-password'} value=${password} onChange=${(e) => setPassword(e.target.value)} />
+          ${signup && html`<p class="mt-1 text-xs text-muted">At least 6 characters.</p>`}
+        </div>
+        ${err && html`<p class="text-sm font-medium text-danger" role="alert">${err}</p>`}
+        ${msg && html`<p class="text-sm font-medium text-accent" role="status">${msg}</p>`}
+        <button type="submit" disabled=${busy} class=${btnPrimary + (busy ? ' opacity-60' : '')}>${busy ? 'Please wait…' : signup ? 'Create account' : 'Sign in'}</button>
+        <button type="button" class="text-sm text-muted underline justify-self-center py-1" onClick=${() => { setMode(signup ? 'signin' : 'signup'); setErr(''); setMsg(''); }}>
+          ${signup ? 'I already have an account' : 'New here? Create an account'}
+        </button>
+      </form>
+    </div>`;
+  }
+
+  const NOTICES = {
+    config: 'Supabase isn’t connected yet, so HabbitRabbit is saving on this device only. Add your project URL and key near the top of the file.',
+    signedout: 'You are not signed in, so your data stays on this device only. Open HabbitRabbit while signed in to Claude to keep your own account.',
+    noaccess: 'This account can’t save data here yet. Ask the owner to share HabbitRabbit with you as a Contributor. For now your changes stay on this device.',
+    offline: 'Your saved data couldn’t be reached, so HabbitRabbit is running on this device only.'
+  };
+
+  const TABS = [
+    { id: 'dashboard', text: 'Dashboard', Icon: IconHome },
+    { id: 'workout', text: 'Workout', Icon: IconBell },
+    { id: 'plans', text: 'Plans', Icon: IconFlag }
+  ];
+
+  function App() {
+    const [s, setS] = useState(load);
+    const [status, setStatus] = useState('loading'); // loading | cloud | local
+    const [notice, setNotice] = useState('');
+    const [user, setUser] = useState(null);
+    const loadedFor = useRef(null);
+    const dbUid = useRef(null);
+    const [saveState, setSaveState] = useState('');
+    const sRef = useRef(s);
+    sRef.current = s;
+    const dbRef = useRef(null);
+    const lastSaved = useRef('');
+    const lastSent = useRef('');
+    const queue = useRef(Promise.resolve());
+    const [today, setToday] = useState(keyOf(new Date()));
+    const [tab, setTab] = useState(() => {
+      try { const h = location.hash.slice(1); if (TABS.some((t) => t.id === h)) return h; } catch (e) {}
+      return 'dashboard';
+    });
+
+    useEffect(() => {
+      const t = setInterval(() => setToday(keyOf(new Date())), 60000);
+      return () => clearInterval(t);
+    }, []);
+    // Supabase: email + password accounts, one private row of data per user.
+    useEffect(() => {
+      if (!sb) { setNotice('config'); setStatus('local'); return; }
+      let dead = false;
+      const valid = (d) => d && d.inc && d.routine && d.progress && d.goals;
+      const handle = async (session) => {
+        if (dead) return;
+        if (!session) {
+          loadedFor.current = null; dbUid.current = null;
+          lastSaved.current = ''; lastSent.current = '';
+          setUser(null); setSaveState(''); setNotice('');
+          setS(seed());
+          setStatus('auth');
+          return;
+        }
+        const uid = session.user.id;
+        if (loadedFor.current === uid) return;
+        loadedFor.current = uid;
+        setUser(session.user);
+        setStatus('loading');
+        const res = await sb.from('user_state').select('data').eq('user_id', uid).maybeSingle();
+        if (dead) return;
+        if (res.error) { loadedFor.current = null; setNotice('offline'); setStatus('local'); return; }
+        let next;
+        if (res.data && valid(res.data.data)) {
+          next = res.data.data;
+        } else {
+          next = seed();
+          const ins = await sb.from('user_state').upsert({ user_id: uid, data: next }, { onConflict: 'user_id' });
+          if (dead) return;
+          if (ins.error) { loadedFor.current = null; setNotice('offline'); setStatus('local'); return; }
+        }
+        const json = JSON.stringify(next);
+        lastSaved.current = json; lastSent.current = json;
+        dbUid.current = uid;
+        setS(next);
+        setNotice('');
+        setStatus('cloud');
+      };
+      sb.auth.getSession().then((r) => handle(r.data.session));
+      const sub = sb.auth.onAuthStateChange((event, session) => { setTimeout(() => handle(session), 0); });
+      return () => { dead = true; sub.data.subscription.unsubscribe(); };
+    }, []);
+
+    // Save: to the account when signed in, otherwise to this device.
+    useEffect(() => {
+      if (status === 'local') { try { localStorage.setItem(STORE, JSON.stringify(s)); } catch (e) {} return; }
+      if (status !== 'cloud' || !dbUid.current) return;
+      const json = JSON.stringify(s);
+      if (json === lastSaved.current) return;
+      setSaveState('saving');
+      const uid = dbUid.current;
+      const timer = setTimeout(() => {
+        queue.current = queue.current.then(async () => {
+          lastSent.current = json;
+          const res = await sb.from('user_state').upsert(
+            { user_id: uid, data: JSON.parse(json), updated_at: new Date().toISOString() },
+            { onConflict: 'user_id' });
+          if (res.error) throw res.error;
+          lastSaved.current = json;
+          setSaveState('saved');
+        }).catch(() => setSaveState('error'));
+      }, 500);
+      return () => clearTimeout(timer);
+    }, [s, status]);
+
+    // Pick up changes made on another device when you come back to this tab.
+    useEffect(() => {
+      if (status !== 'cloud') return;
+      const onVisible = async () => {
+        if (document.visibilityState !== 'visible' || !dbUid.current) return;
+        if (JSON.stringify(sRef.current) !== lastSaved.current) return;
+        const res = await sb.from('user_state').select('data').eq('user_id', dbUid.current).maybeSingle();
+        if (res.error || !res.data || !res.data.data) return;
+        if (JSON.stringify(sRef.current) !== lastSaved.current) return;
+        const json = JSON.stringify(res.data.data);
+        if (json !== lastSaved.current) { lastSaved.current = json; lastSent.current = json; setS(res.data.data); }
+      };
+      document.addEventListener('visibilitychange', onVisible);
+      return () => document.removeEventListener('visibilitychange', onVisible);
+    }, [status]);
+    useEffect(() => {
+      const f = () => {
+        try { const h = location.hash.slice(1); if (TABS.some((t) => t.id === h)) setTab(h); } catch (e) {}
+      };
+      window.addEventListener('hashchange', f);
+      return () => window.removeEventListener('hashchange', f);
+    }, []);
+
+    const go = (id) => { setTab(id); try { location.hash = id; } catch (e) {} window.scrollTo(0, 0); };
+    const patch = (fn) => setS((p) => { const n = JSON.parse(JSON.stringify(p)); fn(n); return n; });
+
+    const actions = {
+      setMode: (m) => patch((n) => { n.mode = m; }),
+      addIncEx: (ex) => patch((n) => { n.inc.exercises.push({ id: uid(), name: ex.name, startSets: ex.sets, reps: ex.reps, startDate: today }); }),
+      delIncEx: (id) => patch((n) => { n.inc.exercises = n.inc.exercises.filter((e) => e.id !== id); }),
+      toggleSet: (id, k) => patch((n) => {
+        const day = n.progress.inc[today] || (n.progress.inc[today] = {});
+        day[id] = (day[id] || 0) === k ? k - 1 : k;
+      }),
+      addRtEx: (i, ex) => patch((n) => { n.routine.days[i].push({ id: uid(), name: ex.name, sets: ex.sets, reps: ex.reps }); }),
+      delRtEx: (i, id) => patch((n) => { n.routine.days[i] = n.routine.days[i].filter((e) => e.id !== id); }),
+      toggleRt: (id) => patch((n) => {
+        const day = n.progress.rt[today] || (n.progress.rt[today] = {});
+        day[id] = !day[id];
+      }),
+      addGoal: (t, d) => patch((n) => { n.goals.push({ id: uid(), title: t, deadline: d, done: false }); }),
+      toggleGoal: (id) => patch((n) => { const g = n.goals.find((x) => x.id === id); if (g) g.done = !g.done; }),
+      delGoal: (id) => patch((n) => { n.goals = n.goals.filter((g) => g.id !== id); }),
+      keepExamples: () => patch((n) => { n.seeded = false; }),
+      clearExamples: () => setS({
+        seeded: false, mode: 'increment', inc: { exercises: [] },
+        routine: { days: [[], [], [], [], [], [], []] }, progress: { inc: {}, rt: {} }, goals: []
+      })
+    };
+
+    const wk = useMemo(() => computeToday(s, today), [s, today]);
+
+    if (status === 'auth') return html`<${AuthScreen} sb=${sb} />`;
+
+    if (status === 'loading') {
+      return html`<div class="shell py-24 text-center text-muted" role="status">
+        <div class="font-display text-3xl font-bold uppercase tracking-wider text-fg">Habbit<span class="text-accent">Rabbit</span></div>
+        <p class="mt-2">Loading your workouts…</p>
+      </div>`;
+    }
+
+    return html`<div class="shell">
+      <header class="flex items-center justify-between gap-4 mb-6">
+        <div class="font-display text-3xl font-bold uppercase tracking-wider">Habbit<span class="text-accent">Rabbit</span></div>
+        <nav class="hidden md:flex rounded-full bg-surface2 p-1" aria-label="Sections">
+          ${TABS.map((t) => html`<button key=${t.id} type="button" aria-current=${tab === t.id ? 'page' : undefined} onClick=${() => go(t.id)}
+            class=${'h-11 px-6 rounded-full font-semibold ' + (tab === t.id ? 'bg-accent text-accentfg' : 'text-muted')}>${t.text}</button>`)}
+        </nav>
+        <div class="flex items-center gap-2" aria-live="polite">
+          ${saveState && html`<span class=${'hidden sm:inline text-xs font-medium ' + (saveState === 'error' ? 'text-danger' : 'text-muted')}>${saveState === 'saving' ? 'Saving\u2026' : saveState === 'saved' ? 'Saved' : 'Not saved'}</span>`}
+          ${status === 'local' && html`<${Chip} tone="neutral">This device only<//>`}
+          ${user && html`<span class="hidden sm:inline text-sm text-muted max-w-[12rem] truncate">${user.email}</span>`}
+          ${user && html`<button type="button" class="h-10 px-3 rounded-md border border-line text-sm font-medium" onClick=${() => sb.auth.signOut()}>Sign out</button>`}
+        </div>
+      </header>
+
+      ${notice && html`<div class="mb-5 rounded-2xl border border-line bg-surface2 px-4 py-3 text-sm" role="status">${NOTICES[notice]}</div>`}
+
+      ${s.seeded && html`<div class="mb-5 flex flex-wrap items-center gap-3 rounded-2xl border border-line bg-warnsoft text-warn px-4 py-3">
+        <span class="flex-1 min-w-[12rem] text-sm font-medium">Example workouts and goals are loaded so you can see how it works.</span>
+        <button type="button" class="h-10 px-4 rounded-md bg-warn text-bg font-semibold" onClick=${actions.clearExamples}>Clear examples</button>
+        <button type="button" class="h-10 px-4 rounded-md border border-warn font-semibold" onClick=${actions.keepExamples}>Keep them</button>
+      </div>`}
+
+      <main>
+        ${tab === 'dashboard' && html`<${Dashboard} s=${s} today=${today} wk=${wk} go=${go} />`}
+        ${tab === 'workout' && html`<${Workout} s=${s} today=${today} wk=${wk} actions=${actions} />`}
+        ${tab === 'plans' && html`<${Plans} s=${s} today=${today} actions=${actions} />`}
+      </main>
+
+      <nav class="tabbar md:hidden fixed bottom-0 inset-x-0 z-20 bg-surface border-t border-line" aria-label="Sections">
+        <div class="flex">
+          ${TABS.map((t) => html`<button key=${t.id} type="button" aria-current=${tab === t.id ? 'page' : undefined} onClick=${() => go(t.id)}
+            class=${'flex-1 h-16 flex flex-col items-center justify-center gap-1 text-xs font-semibold ' + (tab === t.id ? 'text-accent' : 'text-muted')}>
+            <${t.Icon} />${t.text}
+          </button>`)}
+        </div>
+      </nav>
+    </div>`;
+  }
+
+  ReactDOM.createRoot(document.getElementById('root')).render(html`<${App} />`);
+})();
+</script>
+</body>
+</html>
